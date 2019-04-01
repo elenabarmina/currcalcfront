@@ -14,7 +14,9 @@ import { InputGroup,
     Label,
     Col,
     Row,
-    Card } from 'reactstrap';
+    Card,
+    Collapse,
+    Alert } from 'reactstrap';
 
 import 'react-datepicker/dist/react-datepicker.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -25,36 +27,75 @@ class PLCalc extends Component {
     constructor (props) {
         super(props);
 
-        let startDateTemp = moment().subtract(1, 'day').toDate();
+        let startDate = moment().subtract(1, 'day').toDate();
 
         this.state = {
-            startDate: startDateTemp,
-            selectedDate: startDateTemp,
+            startDate: startDate,
+            selectedDate: startDate,
             usdAmount: '',
-            collapse: false,
-            resultText: '0'
+
+            resultText: '0',
+            errorOpen: false,
+            requestErrorMsg: '',
         };
 
-        this.handleChange = this.handleChange.bind(this);
-        this.handleSubmit = this.handleSubmit.bind(this);
+        this.handleDateChange = this.handleDateChange.bind(this);
+        this.handleAmountChange = this.handleAmountChange.bind(this);
         this.calculate = this.calculate.bind(this);
     }
 
     calculate(e) {
         e.preventDefault();
-        let mainDate = this.state.selectedDate;
-        axios.get('http://localhost:8080/currcalcback/plcalculator/calculate-usd-rub', {
+        let date = this.state.selectedDate;
+        let usdAmount = this.state.usdAmount;
+
+        if (isNaN(usdAmount)|| usdAmount <= 0){
+            this.setState({
+                requestErrorMsg: 'Amount USD must be a positive number',
+                errorOpen: true
+            });
+            return;
+        }
+
+        const self = this;
+        axios.get(process.env.REACT_APP_API_PLCALCRUBUSD_URL, {
             params: {
-                date: moment(mainDate).format('YYYY-MM-DD'),
-                usdAmount: this.state.usdAmount
-            }
+                date: moment(date).format('YYYY-MM-DD'),
+                usdAmount: usdAmount
+            },
+            timeout: 5000
         })
-            .then(res => console.log(res.data));
+            .then(function (response) {
+                self.setState({
+                    resultText: response.data.result,
+                    errorOpen: false
+                })
+            })
+            .catch(function (error) {
+                if (error.response) {
+                    self.setState({
+                        resultText: '0',
+                        requestErrorMsg: error.response.data.errorDescription,
+                        errorOpen: true
+                    })
+                } else {
+                    self.setState({
+                        requestErrorMsg: 'Server not responding. Please, try again later.',
+                        errorOpen: true
+                    });
+                }
+            });
     }
 
-    handleChange(date) {
+    handleDateChange(date) {
         this.setState({
             selectedDate: date
+        })
+    }
+
+    handleAmountChange(evt) {
+        this.setState({
+            usdAmount: evt.target.value
         })
     }
 
@@ -73,7 +114,7 @@ class PLCalc extends Component {
                                                 dateFormat="yyyy-MM-dd"
                                                 maxDate={ this.state.startDate }
                                                 className="form-control"
-                                                onChange={this.handleChange}/>
+                                                onChange={this.handleDateChange}/>
                                 </InputGroup>
                             </FormGroup>
                         </Col>
@@ -82,7 +123,7 @@ class PLCalc extends Component {
                                 <Label for="inputAmountUsd">Amount USD: </Label>
                                 <InputGroup id="inputAmountUsd">
                                     <InputGroupAddon addonType="prepend">$</InputGroupAddon>
-                                    <Input placeholder="Amount" type="number" step="1" min={0}/>
+                                    <Input onChange={this.handleAmountChange} placeholder="Amount" type="number" step="1" min={0}/>
                                     <InputGroupAddon addonType="append">.00</InputGroupAddon>
                                 </InputGroup>
                             </FormGroup>
@@ -92,6 +133,12 @@ class PLCalc extends Component {
                     <FormGroup>
                         <Button color="primary" onClick={this.calculate}>Calculate</Button>{' '}
                     </FormGroup>
+
+                    <Collapse isOpen={this.state.errorOpen}>
+                        <Alert color="danger">
+                            {this.state.requestErrorMsg}
+                        </Alert>
+                    </Collapse>
 
                     <Row form>
                     <Col md={2}>
