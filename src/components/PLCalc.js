@@ -27,7 +27,7 @@ class PLCalc extends Component {
     constructor (props) {
         super(props);
 
-        let startDate = moment().subtract(1, 'day').toDate();
+        let startDate = moment().toDate();
 
         this.state = {
             startDate: startDate,
